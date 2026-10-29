@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<title>Neon Wilds — Online Snake Arena</title>
+<script src="/socket.io/socket.io.js"></script>
+<style>
+:root{--cyan:#00f5ff;--pink:#ff38d1;--lime:#a6ff00;--bg:#050714}
+*{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;overflow:hidden;background:var(--bg);color:#eef8ff;font-family:system-ui,-apple-system,Segoe UI,sans-serif}
+button,input,select{font:inherit}button{cursor:pointer;border:1px solid #3e6a91;border-radius:12px;padding:11px 16px;color:#031018;font-weight:850;background:linear-gradient(100deg,var(--cyan),var(--lime));box-shadow:0 0 16px #00eaff33}
+button:active{transform:scale(.98)}.screen{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;padding:16px;background:radial-gradient(ellipse at 50% 20%,#171a48dd,#030510f5 70%)}
+.panel{width:min(680px,100%);max-height:94vh;overflow:auto;border:1px solid #28537b;border-radius:22px;padding:clamp(18px,4vw,30px);background:#080d20ed;box-shadow:0 0 40px #00d9ff18,inset 0 0 25px #9c38ff0b}
+.logo{text-align:center;font-weight:1000;letter-spacing:.13em;font-size:clamp(2rem,8vw,3.8rem);line-height:1;color:var(--cyan);text-shadow:0 0 10px #00f5ff,0 0 30px #006dff;margin:4px 0 8px}
+.tag{text-align:center;color:#a8badc;margin:0 0 22px}.menu-grid{display:grid;grid-template-columns:1fr 1fr;gap:13px}.field{padding:12px;border:1px solid #243b63;border-radius:13px;background:#0c142a}.field label{display:block;font-size:.78rem;color:#9db5db;margin-bottom:7px;letter-spacing:.08em;text-transform:uppercase}.field input[type=text],.field select{width:100%;border:1px solid #344d77;border-radius:8px;padding:9px;background:#050b1b;color:#f4fcff}.field input[type=color]{width:100%;height:38px;border:0;background:transparent}.field input[type=range]{width:100%;accent-color:var(--cyan)}.field small{color:#7f95bc}.wide{grid-column:1/-1}.row{display:flex;align-items:center;justify-content:space-between;gap:12px}.main-actions{display:flex;gap:10px;margin-top:16px}.main-actions button{flex:1}.secondary{background:#111c39;color:#c6faff;box-shadow:none}.note{text-align:center;font-size:.78rem;line-height:1.5;color:#8297bb;margin:16px 0 0}
+#game{position:absolute;inset:0;display:none}canvas#world{display:block;width:100%;height:100%;touch-action:none}
+.hud{position:absolute;left:12px;top:12px;display:flex;gap:8px;flex-wrap:wrap;max-width:calc(100% - 150px)}.pill{background:#071126d9;border:1px solid #27537b;border-radius:10px;padding:8px 11px;backdrop-filter:blur(8px);font-size:.8rem}.pill b{color:var(--lime)}
+#miniWrap{position:absolute;right:12px;top:12px;width:136px;height:136px;border-radius:50%;padding:4px;background:linear-gradient(135deg,var(--cyan),var(--pink));box-shadow:0 0 22px #00eaff35}
+#minimap{display:block;width:100%;height:100%;border-radius:50%;background:#070d20}
+#powerbar{position:absolute;right:12px;top:160px;width:136px;display:grid;gap:5px}.power{font-size:.72rem;padding:6px 8px;border-radius:8px;background:#071126d9;border:1px solid #294a70;color:#c6d8f5}
+#mobileControls{position:absolute;inset:0;display:none;pointer-events:none}
+.joyZone{position:absolute;bottom:18px;width:132px;height:132px;border-radius:50%;background:#08152bb0;border:2px solid #2e6688;box-shadow:inset 0 0 22px #00eaff20;pointer-events:auto;touch-action:none}
+#joy1{left:18px}#joy2{right:18px;border-color:#a54e9b}
+.joyKnob{position:absolute;left:39px;top:39px;width:50px;height:50px;border-radius:50%;background:#00eaff88;border:2px solid #9dfaff;box-shadow:0 0 18px #00eaff66;pointer-events:none}
+#joy2 .joyKnob{background:#ff38d188;border-color:#ffc5f3}
+.joyLabel{position:absolute;top:-22px;left:0;width:100%;text-align:center;font-size:11px;color:#bdeeff;font-weight:800}
+.ctrl{width:54px;height:54px;padding:0;border-radius:50%;background:#0a1834cc;color:var(--cyan);border:1px solid #3980a5;box-shadow:0 0 14px #00eaff22}
+#boost{position:absolute;bottom:22px;right:18px;width:76px;height:76px;border-radius:50%;background:linear-gradient(135deg,#ff38d1,#873bff);color:white;border:1px solid #ff9bf0}
+#gameButtons{position:absolute;left:12px;bottom:12px;display:flex;gap:8px}#gameButtons button{font-size:.78rem;padding:8px 11px}
+.toast{position:absolute;top:24%;left:50%;transform:translateX(-50%);background:#061027e8;border:1px solid #00eaff;border-radius:12px;padding:12px 18px;text-align:center;pointer-events:none;opacity:0;transition:opacity .2s}
+#pauseScreen{display:none;background:#020510aa}.smallTitle{font-size:1.4rem;color:var(--pink);text-align:center;margin:0 0 8px}
+@media (orientation:portrait) and (max-width:900px){#game:before{content:"For the best controls, rotate your phone to landscape ↻";position:absolute;z-index:20;top:50%;left:50%;transform:translate(-50%,-50%);padding:10px 14px;border:1px solid #00eaff;border-radius:12px;background:#071126e8;color:#dffaff;text-align:center;pointer-events:none;font-size:12px}}
+@media(max-width:600px){.menu-grid{grid-template-columns:1fr 1fr;gap:8px}.field{padding:9px}.field label{font-size:.68rem}.panel{padding:17px}.tag{font-size:.84rem}#miniWrap{width:112px;height:112px}#powerbar{top:134px;width:112px}.hud{max-width:calc(100% - 130px)}#mobileControls{display:block}.pill{font-size:.72rem;padding:7px 9px}#gameButtons{bottom:90px}}
+</style></head>
+<body>
+<div class="screen" id="menu">
+ <div class="panel">
+  <div class="logo">NEON WILDS</div>
+  <p class="tag">A huge glowing snake world • Bots • Power-ups • Explore as far as you like</p>
+  <div class="menu-grid">
+   <div class="field"><label for="playerName">Snake name</label><input id="playerName" type="text" maxlength="14" value="NEON"></div>
+   <div class="field"><label for="skin">Snake color</label><input id="skin" type="color" value="#00f5ff"></div>
+   <div class="field"><label for="playerMode">Player mode</label><select id="playerMode"><option value="solo">Solo + bots</option><option value="local2">Local 2 players</option></select></div>
+   <div class="field"><label for="pattern">Glow style</label><select id="pattern"><option value="neon">Neon glow</option><option value="rainbow">Rainbow trail</option><option value="ice">Ice blue</option><option value="toxic">Toxic green</option><option value="sunset">Sunset pink</option></select></div>
+   <div class="field"><label for="worldSize">World size</label><select id="worldSize"><option value="2400">Big</option><option value="3600" selected>Huge</option><option value="5200">Massive</option></select></div>
+   <div class="field wide"><div class="row"><label for="botCount">Bot snakes</label><b id="botLabel">18</b></div><input id="botCount" type="range" min="5" max="35" value="18"></div>
+   <div class="field"><div class="row"><label for="difficulty">Bot skill</label></div><select id="difficulty"><option value="chill">Chill</option><option value="normal" selected>Normal</option><option value="wild">Wild</option></select></div>
+   <div class="field"><label for="powerRate">Power-ups</label><select id="powerRate"><option value="few">Few</option><option value="normal" selected>Normal</option><option value="many">Lots</option></select></div>
+  </div>
+  <div class="field wide" style="margin-top:12px"><label>Online Multiplayer</label><div class="main-actions" style="margin-top:0"><button id="createRoomBtn">＋ CREATE ROOM</button><button class="secondary" id="joinRoomBtn">JOIN ROOM</button></div><div class="row" style="margin-top:10px"><input id="roomCode" type="text" maxlength="6" placeholder="ROOM CODE" style="min-width:0;width:48%;text-transform:uppercase;border:1px solid #344d77;border-radius:8px;padding:10px;background:#050b1b;color:#f4fcff;letter-spacing:.15em"><span id="onlineStatus" style="font-size:.8rem;color:#a8badc">Connecting to server…</span></div></div>
+  <div class="main-actions"><button id="playBtn">▶ SOLO PLAY</button><button class="secondary" id="howBtn">HOW TO PLAY</button></div>
+  <p class="note" id="howText">Move with your mouse/finger or arrow keys. Collect glowing food to grow. Grab power-ups. Avoid walls and other snakes! Local 2-player mode: use both joysticks on one device. Create an online room, then share its code with friends. Everyone needs the hosted game link and internet.</p>
+ </div>
+</div>
+<div id="game">
+ <canvas id="world"></canvas>
+ <div class="hud"><div class="pill">SCORE <b id="score">0</b></div><div class="pill">LENGTH <b id="length">8</b></div><div class="pill">WORLD <b id="coords">0, 0</b></div><div class="pill">YOU <b id="playerTag">NEON</b></div></div>
+ <div id="miniWrap"><canvas id="minimap" width="160" height="160"></canvas></div>
+ <div id="powerbar"><div class="power">✦ Gold = bonus points</div><div class="power">⚡ Blue = speed burst</div><div class="power">🛡 Purple = shield</div></div>
+ <div id="gameButtons"><button class="secondary" id="pauseBtn">Ⅱ PAUSE</button><button class="secondary" id="menuBtn">☰ MENU</button></div>
+ <div id="mobileControls">
+   <div class="joyZone" id="joy1"><div class="joyLabel">P1 JOYSTICK</div><div class="joyKnob"></div></div>
+   <div class="joyZone" id="joy2" style="display:none"><div class="joyLabel">P2 JOYSTICK</div><div class="joyKnob"></div></div>
+ </div>
+ <button id="boost">⚡ BOOST</button>
+ <div class="toast" id="toast"></div>
+</div>
+<div class="screen" id="pauseScreen"><div class="panel" style="max-width:390px"><h2 class="smallTitle">PAUSED</h2><p class="tag">Your adventure is waiting.</p><div class="main-actions"><button id="resumeBtn">▶ RESUME</button><button class="secondary" id="pauseMenuBtn">MAIN MENU</button></div></div></div>
+<script>
+(()=>{
+const $=id=>document.getElementById(id), canvas=$('world'),ctx=canvas.getContext('2d'), mini=$('minimap'),mctx=mini.getContext('2d');
+let W=3600, foods=[], powers=[], bots=[], player, player2=null, cam={x:0,y:0}, running=false,paused=false,last=0,score=0,boost=false,toastTimer=0;
+let socket=null, onlineRoom='', onlineHost=false, remotePlayers={}, lastNetSend=0, lastWorldSend=0, remoteWorldStateAt=0, onlineWorldSize=0;
+const rnd=(a,b)=>a+Math.random()*(b-a), pick=a=>a[Math.floor(Math.random()*a.length)], clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+let dpr=1,sw=innerWidth,sh=innerHeight;
+function resize(){dpr=Math.min(devicePixelRatio||1,2);sw=innerWidth;sh=innerHeight;canvas.width=sw*dpr;canvas.height=sh*dpr;ctx.setTransform(dpr,0,0,dpr,0,0)}
+addEventListener('resize',resize);resize();
+const palette=['#ff38d1','#9dff00','#ffb000','#a66bff','#ff5757','#35a8ff','#ff7b35','#f5f7ff'];
+function newSnake(x,y,isPlayer=false){return {x,y,angle:rnd(0,Math.PI*2),speed:isPlayer?150:rnd(72,112),body:[],size:isPlayer?8:Math.floor(rnd(6,11)),color:isPlayer?$('skin').value:pick(palette),name:isPlayer?($('playerName').value.trim()||'NEON'):pick(['BYTE','NOVA','PIXEL','ZAP','COMET','BOLT','GHOST','MINT','VEX','ORBIT','KRAKEN','SPARK']),isPlayer,alive:true,turn:rnd(-1,1),think:0,shield:0,boostTime:0,points:0};
+}
+function seedBody(s){s.body=[];for(let i=0;i<s.size;i++)s.body.push({x:s.x-Math.cos(s.angle)*i*9,y:s.y-Math.sin(s.angle)*i*9})}
+function randPoint(){return {x:rnd(35,W-35),y:rnd(35,W-35)}}
+function init(){
+ W=(onlineRoom&&onlineWorldSize)?onlineWorldSize:Number($('worldSize').value);score=0;foods=[];powers=[];bots=[];player=newSnake(W/2-100,W/2,true);seedBody(player);
+ player.color=$('skin').value;
+ player2=null;
+ if(!onlineRoom && $('playerMode').value==='local2'){player2=newSnake(W/2+100,W/2,true);player2.name='P2';player2.color='#ff38d1';player2.isPlayer2=true;seedBody(player2);$('joy2').style.display='block'}else $('joy2').style.display='none';
+ for(let i=0;i<Math.max(300,Math.floor(W/6));i++){let p=randPoint();foods.push({...p,r:rnd(2.3,4.5),color:pick(palette),value:1})}
+ let pc=$('powerRate').value, n=pc==='few'?12:pc==='many'?55:28;
+ for(let i=0;i<n;i++){let p=randPoint();powers.push({...p,type:pick(['gold','speed','shield']),r:8})}
+ for(let i=0;i<Number($('botCount').value);i++){let p=randPoint();let b=newSnake(p.x,p.y);seedBody(b);bots.push(b)}
+ cam.x=player.x-sw/2;cam.y=player.y-sh/2;updateHUD();
+}
+function start(){try{if(document.documentElement.requestFullscreen)document.documentElement.requestFullscreen().catch(()=>{});if(screen.orientation&&screen.orientation.lock)screen.orientation.lock('landscape').catch(()=>{})}catch(e){}init();$('menu').style.display='none';$('pauseScreen').style.display='none';$('game').style.display='block';running=true;paused=false;last=performance.now();requestAnimationFrame(loop)}
+function goMenu(){running=false;paused=false;$('game').style.display='none';$('pauseScreen').style.display='none';$('menu').style.display='flex'}
+function pause(){if(!running)return;paused=true;$('pauseScreen').style.display='flex'}
+function resume(){if(!running)return;paused=false;$('pauseScreen').style.display='none';last=performance.now();requestAnimationFrame(loop)}
+$('botCount').oninput=()=> $('botLabel').textContent=$('botCount').value;
+$('playBtn').onclick=start;$('pauseBtn').onclick=pause;$('resumeBtn').onclick=resume;$('menuBtn').onclick=goMenu;$('pauseMenuBtn').onclick=goMenu;
+$('howBtn').onclick=()=>{let t=$('howText');t.style.color=t.style.color?'':'#00f5ff';t.textContent=t.textContent.startsWith('Move')?'Move by pointing with your mouse or finger. On keyboard use arrow keys/WASD. Tap BOOST to sprint (it costs a little length). Collect food and power-ups; explore the huge world. Bots are computer-controlled, not real online players.':'Move with your mouse/finger or arrow keys. Collect glowing food to grow. Grab power-ups. Avoid walls and other snakes! Local 2-player mode: use both joysticks on one device. Create an online room, then share its code with friends. Everyone needs the hosted game link and internet.'};
+let pointer={x:sw/2,y:sh/2,active:false};canvas.addEventListener('pointermove',e=>{pointer.x=e.clientX;pointer.y=e.clientY;pointer.active=true});
+canvas.addEventListener('pointerdown',e=>{pointer.x=e.clientX;pointer.y=e.clientY;pointer.active=true});
+let keys={};addEventListener('keydown',e=>{keys[e.key.toLowerCase()]=true;if(['ArrowUp','ArrowDown','ArrowLeft','ArrowRight',' '].includes(e.key))e.preventDefault();if(e.key===' '&&running&&!paused)boost=!boost});
+addEventListener('keyup',e=>keys[e.key.toLowerCase()]=false);
+$('boost').onpointerdown=e=>{boost=true;e.currentTarget.setPointerCapture(e.pointerId)};$('boost').onpointerup=()=>boost=false;$('boost').onpointercancel=()=>boost=false;
+document.querySelectorAll('[data-turn]').forEach(b=>{b.onpointerdown=()=>{keys[b.dataset.turn==='left'?'a':'d']=true};b.onpointerup=b.onpointercancel=()=>{keys.a=keys.d=false}});
+function notify(text){$('toast').textContent=text;$('toast').style.opacity=1;toastTimer=1.5}
+const joy={p1:{x:0,y:0,active:false},p2:{x:0,y:0,active:false}};
+function setupJoy(id,key){
+ const zone=$(id),knob=zone.querySelector('.joyKnob');let pid=null,rect;
+ function point(e){rect=zone.getBoundingClientRect();let dx=e.clientX-(rect.left+rect.width/2),dy=e.clientY-(rect.top+rect.height/2),max=39,len=Math.hypot(dx,dy);if(len>max){dx=dx/len*max;dy=dy/len*max}knob.style.transform=`translate(${dx}px,${dy}px)`;joy[key].x=dx/max;joy[key].y=dy/max;joy[key].active=Math.hypot(dx,dy)>5}
+ zone.addEventListener('pointerdown',e=>{pid=e.pointerId;zone.setPointerCapture(pid);point(e);e.preventDefault()});
+ zone.addEventListener('pointermove',e=>{if(pid===e.pointerId)point(e)});
+ function end(e){if(pid===e.pointerId){pid=null;joy[key].x=joy[key].y=0;joy[key].active=false;knob.style.transform='translate(0px,0px)'}}
+ zone.addEventListener('pointerup',end);zone.addEventListener('pointercancel',end);
+}
+setupJoy('joy1','p1');setupJoy('joy2','p2');
+function moveSnake(s,dt){
+ if(!s.alive)return;
+ if(s.isPlayer){
+   const j=s.isPlayer2?joy.p2:joy.p1;
+   let target=Math.atan2(pointer.y-sh/2,pointer.x-sw/2);
+   if(s.isPlayer2){if(j.active){let ja=Math.atan2(j.y,j.x);let diff=Math.atan2(Math.sin(ja-s.angle),Math.cos(ja-s.angle));s.angle+=clamp(diff,-2.8*dt,2.8*dt)}}else{if(j.active){let ja=Math.atan2(j.y,j.x);let diff=Math.atan2(Math.sin(ja-s.angle),Math.cos(ja-s.angle));s.angle+=clamp(diff,-2.8*dt,2.8*dt)}if(keys.arrowleft||keys.a) s.angle-=2.5*dt;
+   if(keys.arrowright||keys.d) s.angle+=2.5*dt;}
+   if(keys.arrowup||keys.w) { /* forward is natural */ }
+   if(!s.isPlayer2 && !j.active && pointer.active && Math.hypot(pointer.x-sw/2,pointer.y-sh/2)>18 && !(keys.a||keys.d||keys.arrowleft||keys.arrowright)){
+     let diff=Math.atan2(Math.sin(target-s.angle),Math.cos(target-s.angle));s.angle+=clamp(diff,-2.7*dt,2.7*dt);
+   }
+   if((s.isPlayer2?false:boost)&&s.size>5){s.speed=245;s.boostTime=.1;if(Math.random()<dt*5){s.size--;s.body.pop()}}else s.speed=155;
+ }else{
+   s.think-=dt;if(s.think<=0){s.think=rnd(.25,.8);let nearest=null,nd=1e9;
+    for(let f of foods){let d=(f.x-s.x)**2+(f.y-s.y)**2;if(d<nd){nd=d;nearest=f}}
+    if(nearest){let a=Math.atan2(nearest.y-s.y,nearest.x-s.x);let diff=Math.atan2(Math.sin(a-s.angle),Math.cos(a-s.angle));s.turn=clamp(diff,-1,1)}
+    if(s.x<100||s.x>W-100||s.y<100||s.y>W-100){let a=Math.atan2(W/2-s.y,W/2-s.x);s.turn=clamp(Math.atan2(Math.sin(a-s.angle),Math.cos(a-s.angle)),-1,1)}
+   }
+   let skill=$('difficulty').value==='wild'?2.2:$('difficulty').value==='chill'?1.2:1.7;
+   s.angle+=s.turn*skill*dt;s.speed=($('difficulty').value==='wild'?130:$('difficulty').value==='chill'?78:100);
+ }
+ let v=s.speed*(s.isPlayer&&!s.isPlayer2&&boost?1.22:1);
+ s.x+=Math.cos(s.angle)*v*dt;s.y+=Math.sin(s.angle)*v*dt;
+ s.x=clamp(s.x,8,W-8);s.y=clamp(s.y,8,W-8);
+ s.body.unshift({x:s.x,y:s.y});let spacing=7.4;while(s.body.length>s.size*spacing)s.body.pop();
+}
+function update(dt){
+ if(!player || !player.alive)return;
+ moveSnake(player,dt);if(player2)moveSnake(player2,dt);bots.forEach(b=>moveSnake(b,dt));
+ for(let f=foods.length-1;f>=0;f--){let food=foods[f];let d=Math.hypot(player.x-food.x,player.y-food.y);if(d<13){if(onlineRoom&&socket&&socket.connected)socket.emit('collect-food',{code:onlineRoom,x:food.x,y:food.y,kind:'food'});score+=10;player.size+=.23;foods.splice(f,1);let p=randPoint();foods.push({...p,r:rnd(2,4),color:pick(palette),value:1})}
+ if(player2&&Math.hypot(player2.x-food.x,player2.y-food.y)<13){player2.size+=.23;foods.splice(f,1);let p=randPoint();foods.push({...p,r:rnd(2,4),color:pick(palette),value:1});continue}
+ for(let b of bots){if(Math.hypot(b.x-food.x,b.y-food.y)<12){b.size+=.08;foods.splice(f,1);let p=randPoint();foods.push({...p,r:rnd(2,4),color:pick(palette),value:1});break}}
+ }
+ for(let i=powers.length-1;i>=0;i--){let p=powers[i];if(Math.hypot(player.x-p.x,player.y-p.y)<19){if(onlineRoom&&socket&&socket.connected)socket.emit('collect-food',{code:onlineRoom,x:p.x,y:p.y,kind:'power'});if(p.type==='gold'){score+=100;player.size+=2;notify('✦ GOLD BONUS +100')}if(p.type==='speed'){player.speed=245;notify('⚡ SPEED BURST!')}if(p.type==='shield'){player.shield=5;notify('🛡 SHIELD READY!')}powers.splice(i,1);let q=randPoint();powers.push({...q,type:pick(['gold','speed','shield']),r:8})}}
+ // Collision with bots: shield protects; otherwise respawn player with reduced size.
+ for(let b of bots){if(!b.alive)continue;for(let seg of b.body){if(Math.hypot(player.x-seg.x,player.y-seg.y)<10){if(player.shield>0){player.shield=0;notify('SHIELD SAVED YOU!')}else{score=Math.max(0,score-50);player.size=Math.max(8,Math.floor(player.size*.72));notify('Ouch! Watch out for bots');player.x=clamp(player.x+Math.cos(player.angle+2)*90,20,W-20);player.y=clamp(player.y+Math.sin(player.angle+2)*90,20,W-20);seedBody(player)}break}}}
+ if(player.shield>0)player.shield-=dt;
+ cam.x+=(player.x-sw/2-cam.x)*Math.min(1,dt*5);cam.y+=(player.y-sh/2-cam.y)*Math.min(1,dt*5);
+ updateHUD();
+}
+function updateHUD(){$('score').textContent=score;$('length').textContent=Math.floor(player?player.size:8);$('coords').textContent=`${Math.floor(player?.x||0)}, ${Math.floor(player?.y||0)}`;$('playerTag').textContent=player?(player2?'P1 + P2':player.name):'NEON'}
+function drawSnake(s){
+ if(!s.alive)return;
+ for(let i=s.body.length-1;i>=0;i--){let p=s.body[i],x=p.x,y=p.y;if(x<cam.x-20||y<cam.y-20||x>cam.x+sw+20||y>cam.y+sh+20)continue;
+ let t=i/s.body.length,col=s.color;
+ if(s.isPlayer){let pattern=$('pattern').value;if(pattern==='rainbow')col=`hsl(${(i*8+performance.now()*.08)%360},100%,60%)`;if(pattern==='ice')col='#66eaff';if(pattern==='toxic')col='#a6ff00';if(pattern==='sunset')col='#ff38d1'}
+ ctx.save();ctx.globalAlpha=.98;ctx.fillStyle=col;ctx.shadowColor=col;ctx.shadowBlur=i<3?18:8;
+ let r=Math.max(3,8-t*2);ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx.fill();ctx.restore();
+ }
+ let hx=s.x,hy=s.y;ctx.save();ctx.fillStyle='#ffffff';ctx.shadowColor=s.color;ctx.shadowBlur=24;ctx.beginPath();ctx.arc(hx,hy,9,0,Math.PI*2);ctx.fill();ctx.lineWidth=2;ctx.strokeStyle=s.color;ctx.stroke();ctx.restore();
+ if(s.isPlayer&&s.shield>0){ctx.strokeStyle='#bd73ff';ctx.lineWidth=3;ctx.beginPath();ctx.arc(hx,hy,15,0,Math.PI*2);ctx.stroke()}
+ ctx.font='12px system-ui';ctx.textAlign='center';ctx.fillStyle='#eaf8ff';ctx.fillText(s.name,hx,hy-15);
+}
+function draw(){
+ ctx.clearRect(0,0,sw,sh);ctx.fillStyle='#040713';ctx.fillRect(0,0,sw,sh);
+ ctx.save();ctx.translate(-cam.x,-cam.y);
+ ctx.strokeStyle='#102344';ctx.lineWidth=1;let startX=Math.floor(cam.x/80)*80,startY=Math.floor(cam.y/80)*80;
+ for(let x=startX;x<cam.x+sw+80;x+=80){ctx.beginPath();ctx.moveTo(x,cam.y);ctx.lineTo(x,cam.y+sh);ctx.stroke()}
+ for(let y=startY;y<cam.y+sh+80;y+=80){ctx.beginPath();ctx.moveTo(cam.x,y);ctx.lineTo(cam.x+sw,y);ctx.stroke()}
+ ctx.strokeStyle='#00eaff';ctx.lineWidth=5;ctx.shadowColor='#00eaff';ctx.shadowBlur=20;ctx.strokeRect(0,0,W,W);ctx.shadowBlur=0;
+ for(let f of foods){ctx.fillStyle=f.color;ctx.shadowColor=f.color;ctx.shadowBlur=12;ctx.beginPath();ctx.arc(f.x,f.y,f.r,0,Math.PI*2);ctx.fill()}ctx.shadowBlur=0;
+ for(let p of powers){let col=p.type==='gold'?'#ffd84a':p.type==='speed'?'#00eaff':'#bf64ff';ctx.fillStyle=col;ctx.shadowColor=col;ctx.shadowBlur=18;ctx.beginPath();ctx.arc(p.x,p.y,p.r+Math.sin(performance.now()/160)*1.5,0,Math.PI*2);ctx.fill();ctx.shadowBlur=0;ctx.fillStyle='#061022';ctx.font='bold 11px system-ui';ctx.textAlign='center';ctx.fillText(p.type==='gold'?'✦':p.type==='speed'?'⚡':'S',p.x,p.y+4)}
+ bots.forEach(drawSnake);drawSnake(player);if(player2)drawSnake(player2);Object.values(remotePlayers).forEach(drawSnake);ctx.restore();
+ drawMini();
+}
+function drawMini(){
+ let w=160,h=160;mctx.clearRect(0,0,w,h);mctx.save();mctx.beginPath();mctx.arc(80,80,78,0,Math.PI*2);mctx.clip();mctx.fillStyle='#071126';mctx.fillRect(0,0,w,h);
+ mctx.strokeStyle='#1c3c61';mctx.lineWidth=1;for(let i=0;i<=8;i++){mctx.beginPath();mctx.moveTo(i*20,0);mctx.lineTo(i*20,160);mctx.stroke();mctx.beginPath();mctx.moveTo(0,i*20);mctx.lineTo(160,i*20);mctx.stroke()}
+ let scale=160/W;for(let f of foods){mctx.fillStyle=f.color;mctx.globalAlpha=.75;mctx.fillRect(f.x*scale,f.y*scale,1.7,1.7)}mctx.globalAlpha=1;
+ for(let p of powers){mctx.fillStyle=p.type==='gold'?'#ffd84a':p.type==='speed'?'#00eaff':'#bf64ff';mctx.beginPath();mctx.arc(p.x*scale,p.y*scale,2.5,0,Math.PI*2);mctx.fill()}
+ for(let rp of Object.values(remotePlayers)){mctx.fillStyle=rp.color||'#ff38d1';mctx.beginPath();mctx.arc(rp.x*scale,rp.y*scale,4,0,Math.PI*2);mctx.fill()}
+ for(let b of bots){mctx.fillStyle=b.color;mctx.beginPath();mctx.arc(b.x*scale,b.y*scale,2.4,0,Math.PI*2);mctx.fill()}
+ if(player2){mctx.fillStyle='#ff38d1';mctx.beginPath();mctx.arc(player2.x*scale,player2.y*scale,4,0,Math.PI*2);mctx.fill()}mctx.fillStyle='#fff';mctx.shadowColor='#00f5ff';mctx.shadowBlur=7;mctx.beginPath();mctx.arc(player.x*scale,player.y*scale,4,0,Math.PI*2);mctx.fill();mctx.restore();
+}
+function loop(now){if(!running||paused)return;let dt=Math.min((now-last)/1000,.035);last=now;if(player&&player.alive){update(dt);if(onlineRoom)sendNetworkState(now);draw()}if(toastTimer>0){toastTimer-=dt;if(toastTimer<=0)$('toast').style.opacity=0}requestAnimationFrame(loop)}
+
+// Online rooms: server relays player positions and the host's shared food/power-up state.
+function connectSocket(){
+ if(socket)return socket;
+ socket=io({transports:['websocket','polling']});
+ socket.on('connect',()=>{$('onlineStatus').textContent='Server connected';$('onlineStatus').style.color='#a6ff00'});
+ socket.on('disconnect',()=>{$('onlineStatus').textContent='Disconnected';$('onlineStatus').style.color='#ff7b9c';notify('Connection lost. Reconnecting…')});
+ socket.on('connect_error',()=>{$('onlineStatus').textContent='Server unavailable';$('onlineStatus').style.color='#ff7b9c'});
+ socket.on('room-created',data=>{onlineRoom=data.code;onlineHost=true;onlineWorldSize=data.worldSize;applyRoomConfig(data.config);remotePlayers={};$('roomCode').value=data.code;$('onlineStatus').textContent='Room '+data.code+' ready — share the code';notify('Room '+data.code+' created');startOnlineGame()});
+ socket.on('room-joined',data=>{onlineRoom=data.code;onlineHost=false;onlineWorldSize=data.worldSize;applyRoomConfig(data.config);remotePlayers={};$('onlineStatus').textContent='Joined room '+data.code;notify('Joined room!');startOnlineGame();if(data.worldState){foods=data.worldState.foods||foods;powers=data.worldState.powers||powers}});
+ socket.on('room-error',data=>{notify(data.message||'Could not join room');$('onlineStatus').textContent=data.message||'Room error'});
+ socket.on('player-joined',data=>{notify((data.name||'A player')+' joined')});
+ socket.on('player-left',data=>{delete remotePlayers[data.id];notify((data.name||'A player')+' left')});
+ socket.on('host-changed',data=>{onlineHost=!!data.isHost;if(onlineHost)notify('You are now the room host')});
+ socket.on('food-collected',data=>{if(data&&Number.isFinite(data.x)&&Number.isFinite(data.y)){foods=foods.filter(f=>Math.hypot(f.x-data.x,f.y-data.y)>8);if(data.kind==='power')powers=powers.filter(p=>Math.hypot(p.x-data.x,p.y-data.y)>12)}});
+ socket.on('players',data=>{remotePlayers={};for(const item of data){if(item.id!==socket.id&&item.snake)remotePlayers[item.id]={...item.snake,isPlayer:true,alive:true}}});
+ socket.on('player-update',data=>{if(data.id!==socket.id&&data.snake)remotePlayers[data.id]={...data.snake,isPlayer:true,alive:true}});
+ socket.on('world-state',data=>{if(!onlineHost&&data&&Array.isArray(data.foods)){foods=data.foods;powers=data.powers||powers;remoteWorldStateAt=Date.now()}});
+ return socket;
+}
+function applyRoomConfig(config){if(!config)return;if(config.botCount)$('botCount').value=String(config.botCount);$('botLabel').textContent=$('botCount').value;if(config.difficulty)$('difficulty').value=config.difficulty;if(config.powerRate)$('powerRate').value=config.powerRate}
+function startOnlineGame(){if(!socket||!onlineRoom)return;start();$('playerTag').textContent=($('playerName').value.trim()||'NEON')+' • '+onlineRoom;notify('Online multiplayer connected')}
+function createOnlineRoom(){connectSocket();const launch=()=>socket.emit('create-room',{name:$('playerName').value.trim()||'NEON',color:$('skin').value,worldSize:Number($('worldSize').value),botCount:Number($('botCount').value),difficulty:$('difficulty').value,powerRate:$('powerRate').value});if(socket.connected)launch();else socket.once('connect',launch)}
+function joinOnlineRoom(){let code=$('roomCode').value.trim().toUpperCase();if(!code){notify('Enter a room code first');return}connectSocket();const launch=()=>socket.emit('join-room',{code,name:$('playerName').value.trim()||'NEON',color:$('skin').value});if(socket.connected)launch();else socket.once('connect',launch)}
+function sendNetworkState(now){if(!socket||!socket.connected||!onlineRoom||!player||now-lastNetSend<66)return;lastNetSend=now;const snake={x:player.x,y:player.y,angle:player.angle,color:player.color,name:player.name,size:player.size,body:player.body.slice(0,Math.min(player.body.length,Math.ceil(player.size*7.4))).map(p=>({x:p.x,y:p.y})),shield:player.shield};socket.emit('player-update',{code:onlineRoom,snake});if(onlineHost&&now-lastWorldSend>700){lastWorldSend=now;socket.emit('world-state',{code:onlineRoom,worldSize:W,foods,powers})}}
+$('createRoomBtn').addEventListener('click',createOnlineRoom);$('joinRoomBtn').addEventListener('click',joinOnlineRoom);
+connectSocket();
+
+// draw a sample animated menu preview without starting the game
+})();
+</script>
+</body></html>
